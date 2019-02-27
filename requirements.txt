@@ -12,7 +12,7 @@ django-nvd3==0.9.7
 entrypoints==0.3
 gunicorn==19.9.0
 holidays==0.9.9
-ipykernel==5.1.0
+ipykernel
 ipython==7.3.0
 ipython-genutils==0.2.0
 ipywidgets==7.4.2
