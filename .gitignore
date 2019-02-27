@@ -105,3 +105,37 @@ venv.bak/
 # mypy
 .mypy_cache/
 
+.idea/
+FairObjectives3/__init__.py
+FairObjectives3/settings.py
+FairObjectives3/urls.py
+FairObjectives3/wsgi.py
+allocation/__init__.py
+allocation/admin.py
+allocation/apps.py
+allocation/forms.py
+allocation/migrations/0001_initial.py
+allocation/migrations/__init__.py
+allocation/models.py
+allocation/optimization/__init__.py
+allocation/optimization/optimization.py
+allocation/optimization/utils.py
+allocation/templates/
+allocation/tests.py
+allocation/urls
+allocation/utilities/__init__.py
+allocation/utilities/objectives_allocation.py
+allocation/utilities/utility.py
+allocation/views.py
+components/bower_components/d3/
+components/bower_components/nvd3/.bower.json
+components/bower_components/nvd3/bower.json
+data/
+get-pip.py
+import.ipynb
+lista.csv
+manage.py
+prova.ipynb
+static/
+staticfiles/
+templates/
