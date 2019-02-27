@@ -20,7 +20,7 @@ class PortfolioAssetForm(forms.ModelForm):
         widgets = {
             'aggregated_portfolio': forms.HiddenInput(),
             'date': forms.HiddenInput(),
-            #'asset': forms.Select(choices=Asset.objects.all())
+            'asset': forms.Select(choices=Asset.objects.all())
         }
         labels = {'price': 'price'}
 
