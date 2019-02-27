@@ -13,7 +13,7 @@ entrypoints==0.3
 gunicorn==19.9.0
 holidays==0.9.9
 ipykernel
-ipython==7.3.0
+ipython
 ipython-genutils==0.2.0
 ipywidgets==7.4.2
 jedi==0.13.3
