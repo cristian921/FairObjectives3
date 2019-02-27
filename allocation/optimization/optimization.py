@@ -117,3 +117,96 @@ def optimize_ob(objectives, returns, risks, corr, initial_prices, max_quotes, ac
                     del actual_price[asset]
                 i += 1
     return objectives
+
+
+def founds_allocation(objectives, founds, niter):
+
+    def funct(vars):
+        funct = []
+        for i in range(0, len(objectives)):
+            funct.append((objectives[i]["value_minus_savings"]/vars[i])**(1.0/objectives[i]["time_horizon"])-1.0)
+        funct.append(-sum(vars))
+        return funct, [sum(vars) - founds, ]
+
+    types = []
+    for i in range(0, len(objectives)):
+        types.append(Real(objectives[i]["value_minus_savings"]/(1+objectives[i]["alfa"])**objectives[i]["time_horizon"],
+                          objectives[i]["value_minus_savings"]))
+    problem = Problem(len(objectives), len(objectives)+1, 1)
+
+    problem.types[:] = types
+    problem.constraints[:] = "<=0"
+    problem.function = funct
+
+    algorithm = PAES(problem)
+    algorithm.run(niter)
+
+    feasible_solutions = [s for s in algorithm.result if s.feasible]
+
+    return [feasible_solutions, algorithm.result, nondominated(algorithm.result)]
+
+
+def budgeting(founds, yearly_savings, objectives, niter=1000):
+    saving = 0
+    objectives = sorted(objectives, key=lambda k: k['time_horizon'])
+    for i in range(0, len(objectives)):
+        if i == 0:
+            saving += objectives[i]["time_horizon"]*yearly_savings
+        else:
+            saving += (objectives[i]["time_horizon"]-objectives[i-1]["time_horizon"])*yearly_savings
+        if objectives[i]["value"] - saving <= 0:
+            #print(objectives[i]["value"], objectives[i]["value"] - saving, saving)
+            saving -= objectives[i]["value"]
+            objectives[i]["savings_required"] = objectives[i]["value"]
+            objectives[i]["value_minus_savings"] = 0
+        else:
+            objectives[i]["value_minus_savings"] = objectives[i]["value"] - saving
+            objectives[i]["savings_required"] = saving
+            saving = 0
+    objectives_gt_zero = [objective for objective in objectives if objective["value_minus_savings"] > 0]
+    objectives_lt_zero = [objective for objective in objectives if objective["value_minus_savings"] == 0]
+    #print(json.dumps(objectives_lt_zero, indent=2))
+    for ob in objectives_lt_zero:
+        ob["investment_required"] = 0
+        ob["annualized_return_supposed"] = 0
+    if len(objectives_gt_zero) > 0:
+        sols = founds_allocation(objectives_gt_zero, founds, niter)
+        if len(sols[0]) > 0:
+            sol = sols[0][0]
+            for i in range(0, len(sol.variables)):
+                objectives_gt_zero[i]["investment_required"] = sol.variables[i]
+                objectives_gt_zero[i]["annualized_return_supposed"] = sol.objectives[i]
+            info = "Solutions found"
+        else:
+            sol = sols[1][0]
+            for i in range(0, len(sol.variables)):
+                objectives_gt_zero[i]["investment_required"] = sol.variables[i]
+                objectives_gt_zero[i]["annualized_return_supposed"] = sol.objectives[i]
+            info = "Solutions not found"
+        sol = dict()
+        sol["info"] = info
+        sol["objectives"] = objectives_gt_zero + objectives_lt_zero
+    else:
+        sol = dict()
+        sol["info"] = "Solutions found"
+        sol["objectives"] = objectives_lt_zero
+    return sol
+
+
+def budgeting_loop(founds, yearly_savings, objectives):
+    info = "Solutions not found"
+    while info == "Solutions not found":
+        obi = budgeting(founds, yearly_savings, objectives)
+        info = obi["info"]
+        if info == "Solutions not found":
+            minP = 5
+            founded = False
+            while minP > 0 and founded is False:
+                for i in range(0, len(objectives)):
+                    if objectives[i]["priority"] == minP:
+                        #obietivoElm = obiettivi[i]
+                        del objectives[i]
+                        founded = True
+                        break
+                minP -= 1
+    return obi

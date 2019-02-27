@@ -10,7 +10,8 @@
             <a class="btn btn-primary text-white" href="/deleteAllSolution/" onclick="myFunction()">Delete all solution</a>
      </div>
     <br/>
-    <div class="container">
+    {% if portfolio_user %}
+        <div class="container">
         <div class="d-flex justify-content-center">
             <table class="table table-borderless">
                  <thead>
@@ -35,7 +36,7 @@
             {% include_container chartcontainer1 400 400%}
         </div>
     </div>
-
+    {% endif %}
     <div class="container">
         <table class="table table-borderless">
          <thead>
@@ -96,7 +97,7 @@
                         {% for a in portfolios|get_item:os.id %}
                             <tr>
                                 <td>{{ a.asset }}</td>
-                                <td>{{ a.quote|val }}</td>
+                                <td>{{ a.quote|val|intcomma }}</td>
                                 <td>{{ prices|get_item:os.id|get_price:a.asset.codec|val|intcomma }}€</td>
                                 <td>{{ weights|get_item:os.id|get_item:a.asset.codec|percentage }}%</td>
                                 <td>{{ returns|get_item:os.id|get_item:a.asset.codec|percentage }}%</td>

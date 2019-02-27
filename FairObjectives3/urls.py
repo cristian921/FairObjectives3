@@ -40,5 +40,5 @@ urlpatterns = [
     path('<int:pk>/deleteSolution/', views.delete_solution, name="delete_solution"),
     path('deleteAllSolution/', views.delete_all_solution, name="delete_all_solution"),
     path('viewObjectivesAllocation/', views.view_objective_allocation, name="chart"),
-
+    path('bug/', views.founds_allocation_fun, name="chart"),
 ] + static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)

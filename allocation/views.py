@@ -6,8 +6,11 @@ from allocation.utilities.utility import *
 from datetime import datetime as dt
 import pandas as pd
 from django.template.defaulttags import register
-from allocation.optimization.optimization import optimize_ob
+from allocation.optimization.optimization import optimize_ob, budgeting_loop
 import holidays
+from pypfopt.efficient_frontier import EfficientFrontier
+from pypfopt import risk_models
+from pypfopt import expected_returns
 
 
 holidays_us = holidays.UnitedStates()
@@ -373,13 +376,13 @@ def view_objective_allocation(request):
     quotes_remaining = dict()
     for os in objective_solution:
         portfolio = ObjectivePortfolioAsset.objects.filter(objective_solution=os)
-        if portfolio:
+        print("port", portfolio.count())
+        if portfolio.count() > 0:
+            print("port", portfolio.values())
             quotes = dict()
             for assetP in portfolio:
                 quotes[assetP.asset] = assetP.quote
-                #print assetP.asset.name, assetP.quote
                 if assetP.asset.codec in quotes_used:
-
                     quotes_used[assetP.asset.codec] += assetP.quote
                 else:
                     quotes_used[assetP.asset.codec] = assetP.quote
@@ -411,6 +414,8 @@ def view_objective_allocation(request):
             return_annu[os.id] = portfolio_return(weights_in, an_returns, ab_returns)[0]
             return_sol[os.id] = an_returns
             p_risk[os.id] = portfolio_risk(risks, corr, weights_in)
+        else:
+            values[os.id] = 0
     for p in portfolio_user:
         quotes_remaining[p.asset.codec] = p.quote - quotes_used[p.asset.codec]
     #print json.dumps(risks_sol, indent=2)
@@ -471,3 +476,71 @@ def view_objective_allocation(request):
     }
 
     return render_to_response("allocation/view_objective_allocation.html", context)
+
+
+@login_required(login_url='/login/')
+def founds_allocation_fun(request):
+    non_import_codec = ['ISCI137', 'ISCI325', 'ISCI326', 'ISCI328', 'ISCI40', 'ISCI693', 'ISCI830']
+    global_asset_codec = ['ISCI45', 'ISCI46', 'ISCI48', 'ISCI49', 'ISCI326', 'ISCI679', 'ISCI137', 'ISCI160', 'ISCI199',
+                          'ISCI164', 'ISCI163', 'ISCI158']
+
+    resources = UserResource.objects.filter(user=request.user).first()
+    objectives = Objective.objects.filter(user=request.user)
+    objectives_list = []
+    for objective in objectives:
+        objectives_list.append({
+            "id": objective.id,
+            "time_horizon": objective.time_horizon,
+            "alfa": 0.08,
+            "priority": objective.priority,
+            "value": objective.finalValue,
+        })
+    solutions = budgeting_loop(resources.founds, resources.monthly_savings*12, objectives_list)
+
+    print(json.dumps(solutions, indent=2))
+    assets = Asset.objects.all()
+    for objective in solutions["objectives"]:
+        if objective["annualized_return_supposed"] > 0:
+            asset_series_df = pd.DataFrame()
+            for asset in assets:
+                if asset.codec not in non_import_codec and asset.codec not in global_asset_codec:
+                    df = pd.DataFrame(list(Series.objects.filter(date__gt=difference_date(today, objective["time_horizon"]),
+                                                                 asset=asset).values('date', 'price')))
+                    df.columns = ['date', asset.codec]
+                    if asset_series_df.empty:
+                        asset_series_df = df
+                    else:
+                        asset_series_df = asset_series_df.join(df.set_index('date'), on='date').dropna()
+
+            asset_series_df = asset_series_df.set_index('date')
+
+            mu = expected_returns.mean_historical_return(asset_series_df)
+            S = risk_models.sample_cov(asset_series_df)
+            # Optimise
+            ef = EfficientFrontier(mu, S)
+            ef.efficient_return(target_return=objective["annualized_return_supposed"])
+            cleaned_weights = ef.clean_weights()
+            weights = {k: v for k, v in cleaned_weights.items() if v > 0}
+            stat = ef.portfolio_performance(verbose=True)
+
+            sol = ObjectiveSolution(feasible=True,
+                                    savings_required=objective["savings_required"], objective_id=objective["id"],
+                                    expected_return=stat[0],
+                                    expected_risk=stat[1])
+            sol.save()
+            for asset in weights:
+                price = asset_series_df.iloc[len(asset_series_df)-1][asset]
+                print(price, weights[asset], objective["investment_required"])
+                quote = (weights[asset] * objective["investment_required"]) / price
+                ob_port_asset = ObjectivePortfolioAsset(objective_solution=sol, asset_id=asset,
+                                                        quote=quote,
+                                                        date=today)
+                ob_port_asset.save()
+        else:
+            sol = ObjectiveSolution(feasible=True,
+                                    savings_required=objective["savings_required"], objective_id=objective["id"],
+                                    expected_return=0,
+                                    expected_risk=0)
+            sol.save()
+
+    return HttpResponseRedirect('/')
